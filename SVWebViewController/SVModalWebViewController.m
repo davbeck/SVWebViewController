@@ -41,4 +41,14 @@
     self.navigationBar.tintColor = self.barsTintColor;
 }
 
+- (void)setActivites:(NSArray *)activites
+{
+	webViewController.activites = activites;
+}
+
+- (NSArray *)activites
+{
+	return webViewController.activites;
+}
+
 @end
