@@ -15,6 +15,6 @@
 - (id)initWithAddress:(NSString*)urlString;
 - (id)initWithURL:(NSURL*)URL;
 
-@property (nonatomic, readwrite) SVWebViewControllerAvailableActions availableActions;
+@property (nonatomic, copy) NSArray *activites;
 
 @end

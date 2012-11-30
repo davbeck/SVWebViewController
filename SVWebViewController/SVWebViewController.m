@@ -8,14 +8,14 @@
 
 #import "SVWebViewController.h"
 
-@interface SVWebViewController () <UIWebViewDelegate, UIActionSheetDelegate, MFMailComposeViewControllerDelegate>
+@interface SVWebViewController () <UIWebViewDelegate, MFMailComposeViewControllerDelegate>
 
 @property (nonatomic, strong, readonly) UIBarButtonItem *backBarButtonItem;
 @property (nonatomic, strong, readonly) UIBarButtonItem *forwardBarButtonItem;
 @property (nonatomic, strong, readonly) UIBarButtonItem *refreshBarButtonItem;
 @property (nonatomic, strong, readonly) UIBarButtonItem *stopBarButtonItem;
 @property (nonatomic, strong, readonly) UIBarButtonItem *actionBarButtonItem;
-@property (nonatomic, strong, readonly) UIActionSheet *pageActionSheet;
+@property (nonatomic, strong, readonly) UIActivityViewController *activityViewController;
 
 @property (nonatomic, strong) UIWebView *mainWebView;
 @property (nonatomic, strong) NSURL *URL;
@@ -36,10 +36,9 @@
 
 @implementation SVWebViewController
 
-@synthesize availableActions;
-
 @synthesize URL, mainWebView;
-@synthesize backBarButtonItem, forwardBarButtonItem, refreshBarButtonItem, stopBarButtonItem, actionBarButtonItem, pageActionSheet;
+@synthesize backBarButtonItem, forwardBarButtonItem, refreshBarButtonItem, stopBarButtonItem, actionBarButtonItem;
+@synthesize activityViewController = _activityViewController;
 
 #pragma mark - setters and getters
 
@@ -88,30 +87,18 @@
     return actionBarButtonItem;
 }
 
-- (UIActionSheet *)pageActionSheet {
-    
-    if(!pageActionSheet) {
-        pageActionSheet = [[UIActionSheet alloc] 
-                        initWithTitle:self.mainWebView.request.URL.absoluteString
-                        delegate:self 
-                        cancelButtonTitle:nil   
-                        destructiveButtonTitle:nil   
-                        otherButtonTitles:nil]; 
-
-        if((self.availableActions & SVWebViewControllerAvailableActionsCopyLink) == SVWebViewControllerAvailableActionsCopyLink)
-            [pageActionSheet addButtonWithTitle:NSLocalizedString(@"Copy Link", @"")];
-        
-        if((self.availableActions & SVWebViewControllerAvailableActionsOpenInSafari) == SVWebViewControllerAvailableActionsOpenInSafari)
-            [pageActionSheet addButtonWithTitle:NSLocalizedString(@"Open in Safari", @"")];
-        
-        if([MFMailComposeViewController canSendMail] && (self.availableActions & SVWebViewControllerAvailableActionsMailLink) == SVWebViewControllerAvailableActionsMailLink)
-            [pageActionSheet addButtonWithTitle:NSLocalizedString(@"Mail Link to this Page", @"")];
-        
-        [pageActionSheet addButtonWithTitle:NSLocalizedString(@"Cancel", @"")];
-        pageActionSheet.cancelButtonIndex = [self.pageActionSheet numberOfButtons]-1;
-    }
-    
-    return pageActionSheet;
+- (UIActivityViewController *)activityViewController
+{
+	if (_activityViewController == nil) {
+		_activityViewController = [[UIActivityViewController alloc] initWithActivityItems:@[self.mainWebView.request.URL] applicationActivities:self.activites];
+		
+		SVWebViewController *strongSelf = self;
+		_activityViewController.completionHandler = ^(NSString *activityType, BOOL completed) {
+			strongSelf->_activityViewController = nil;
+		};
+	}
+	
+	return _activityViewController;
 }
 
 #pragma mark - Initialization
@@ -124,7 +111,6 @@
     
     if(self = [super init]) {
         self.URL = pageURL;
-        self.availableActions = SVWebViewControllerAvailableActionsOpenInSafari | SVWebViewControllerAvailableActionsMailLink;
     }
     
     return self;
@@ -153,7 +139,6 @@
     refreshBarButtonItem = nil;
     stopBarButtonItem = nil;
     actionBarButtonItem = nil;
-    pageActionSheet = nil;
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -210,30 +195,17 @@
         NSArray *items;
         CGFloat toolbarWidth = 250.0f;
         
-        if(self.availableActions == 0) {
-            toolbarWidth = 200.0f;
-            items = [NSArray arrayWithObjects:
-                     fixedSpace,
-                     refreshStopBarButtonItem,
-                     flexibleSpace,
-                     self.backBarButtonItem,
-                     flexibleSpace,
-                     self.forwardBarButtonItem,
-                     fixedSpace,
-                     nil];
-        } else {
-            items = [NSArray arrayWithObjects:
-                     fixedSpace,
-                     refreshStopBarButtonItem,
-                     flexibleSpace,
-                     self.backBarButtonItem,
-                     flexibleSpace,
-                     self.forwardBarButtonItem,
-                     flexibleSpace,
-                     self.actionBarButtonItem,
-                     fixedSpace,
-                     nil];
-        }
+		items = [NSArray arrayWithObjects:
+				 fixedSpace,
+				 refreshStopBarButtonItem,
+				 flexibleSpace,
+				 self.backBarButtonItem,
+				 flexibleSpace,
+				 self.forwardBarButtonItem,
+				 flexibleSpace,
+				 self.actionBarButtonItem,
+				 fixedSpace,
+				 nil];
         
         UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(0.0f, 0.0f, toolbarWidth, 44.0f)];
         toolbar.items = items;
@@ -244,29 +216,17 @@
     else {
         NSArray *items;
         
-        if(self.availableActions == 0) {
-            items = [NSArray arrayWithObjects:
-                     flexibleSpace,
-                     self.backBarButtonItem, 
-                     flexibleSpace,
-                     self.forwardBarButtonItem,
-                     flexibleSpace,
-                     refreshStopBarButtonItem,
-                     flexibleSpace,
-                     nil];
-        } else {
-            items = [NSArray arrayWithObjects:
-                     fixedSpace,
-                     self.backBarButtonItem, 
-                     flexibleSpace,
-                     self.forwardBarButtonItem,
-                     flexibleSpace,
-                     refreshStopBarButtonItem,
-                     flexibleSpace,
-                     self.actionBarButtonItem,
-                     fixedSpace,
-                     nil];
-        }
+		items = [NSArray arrayWithObjects:
+				 fixedSpace,
+				 self.backBarButtonItem,
+				 flexibleSpace,
+				 self.forwardBarButtonItem,
+				 flexibleSpace,
+				 refreshStopBarButtonItem,
+				 flexibleSpace,
+				 self.actionBarButtonItem,
+				 fixedSpace,
+				 nil];
         
         self.toolbarItems = items;
     }
@@ -314,13 +274,15 @@
 
 - (void)actionButtonClicked:(id)sender {
     
-    if(pageActionSheet)
+    if(_activityViewController != nil)
         return;
 	
-    if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad)
-        [self.pageActionSheet showFromBarButtonItem:self.actionBarButtonItem animated:YES];
-    else
-        [self.pageActionSheet showFromToolbar:self.navigationController.toolbar];
+    if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+		UIPopoverController *popover = [[UIPopoverController alloc] initWithContentViewController:self.activityViewController];
+		[popover presentPopoverFromBarButtonItem:sender permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
+	} else {
+		[self presentViewController:self.activityViewController animated:YES completion:nil];
+	}
     
 }
 
@@ -330,39 +292,6 @@
 #else
     [self dismissViewControllerAnimated:YES completion:NULL];
 #endif
-}
-
-#pragma mark -
-#pragma mark UIActionSheetDelegate
-
-- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
-	NSString *title = [actionSheet buttonTitleAtIndex:buttonIndex];
-    
-	if([title isEqualToString:NSLocalizedString(@"Open in Safari", @"")])
-        [[UIApplication sharedApplication] openURL:self.mainWebView.request.URL];
-    
-    if([title isEqualToString:NSLocalizedString(@"Copy Link", @"")]) {
-        UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
-        pasteboard.string = self.mainWebView.request.URL.absoluteString;
-    }
-    
-    else if([title isEqualToString:NSLocalizedString(@"Mail Link to this Page", @"")]) {
-        
-		MFMailComposeViewController *mailViewController = [[MFMailComposeViewController alloc] init];
-        
-		mailViewController.mailComposeDelegate = self;
-        [mailViewController setSubject:[self.mainWebView stringByEvaluatingJavaScriptFromString:@"document.title"]];
-  		[mailViewController setMessageBody:self.mainWebView.request.URL.absoluteString isHTML:NO];
-		mailViewController.modalPresentationStyle = UIModalPresentationFormSheet;
-        
-#if __IPHONE_OS_VERSION_MIN_REQUIRED < 60000
-		[self presentModalViewController:mailViewController animated:YES];
-#else
-        [self presentViewController:mailViewController animated:YES completion:NULL];
-#endif
-	}
-    
-    pageActionSheet = nil;
 }
 
 #pragma mark -
